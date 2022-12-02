@@ -4,7 +4,8 @@ import pickle
 import os
 from tqdm import tqdm
 
-dict_dir = "summary_dicts_multi5"
+# TODO: this file should really get a full rework
+
 def moving_average(x, w):
     return np.convolve(x, np.ones(w), 'same') / w
 
@@ -39,8 +40,8 @@ class SmartTimer:
         self.value += tock - clock
         return tock
 
-def iterate_layer_dict(base_dir, layer_num):
-    for root, dirs, files in os.walk(f"{base_dir}/layers_{layer_num}"):
+def iterate_layer_dict(base_dir, var_num, var_str):
+    for root, dirs, files in os.walk(f"{base_dir}/{var_str}_{var_num}"):
         for file in files:
             if file.endswith(".data"):
                 with open(os.path.join(root,file), "rb") as f:
@@ -65,10 +66,10 @@ def iterate_directory(base_dir):
 # }
 
 
-def plot_success_rate(base_dir,layer_num):
+def plot_success_rate(base_dir,layer_num, detail):
     request_success_rate = []
     p = []
-    data_arr = list(iterate_layer_dict(base_dir, layer_num))
+    data_arr = list(iterate_layer_dict(base_dir, layer_num, detail))
     if len(data_arr) == 0:
         raise ValueError
     data_arr.sort(key=lambda data: data["init_data"][0])
@@ -79,14 +80,17 @@ def plot_success_rate(base_dir,layer_num):
 
     request_success_rate = np.array(request_success_rate)
     p = np.array(p)
-    plt.plot(p, request_success_rate, label=f"N={4 ** layer_num}")
+    if detail == "n":
+        plt.plot(p, request_success_rate, label=f"N={4 ** layer_num}")
+    elif detail == "b":
+        plt.plot(p, request_success_rate, label=f"b={layer_num}")
 
 
-def plot_request_time(base_dir, layer_num, whiskers=False):
+def plot_request_time(base_dir, layer_num, whiskers, detail):
     if whiskers:
         request_times = []
         p = []
-        data_arr = list(iterate_layer_dict(base_dir, layer_num))
+        data_arr = list(iterate_layer_dict(base_dir, layer_num, detail))
         if len(data_arr) == 0:
             raise ValueError
         data_arr.sort(key=lambda data: data["init_data"][0])
@@ -101,7 +105,7 @@ def plot_request_time(base_dir, layer_num, whiskers=False):
     else:
         mean_request_time = []
         p = []
-        data_arr = list(iterate_layer_dict(base_dir, layer_num))
+        data_arr = list(iterate_layer_dict(base_dir, layer_num, detail))
         if len(data_arr) == 0:
             raise ValueError
         data_arr.sort(key=lambda data: data["init_data"][0])
@@ -112,7 +116,10 @@ def plot_request_time(base_dir, layer_num, whiskers=False):
 
         mean_request_time = np.array(mean_request_time)
         p = np.array(p)
-        plt.plot(p, mean_request_time, label=f"N={4 ** layer_num}")
+        if detail == "n":
+            plt.plot(p, mean_request_time, label=f"N={4 ** layer_num}")
+        elif detail == "b":
+            plt.plot(p, mean_request_time, label=f"b={layer_num}")
 
 
 def plot_time_sweep(base_dir, plotdict):
@@ -193,6 +200,10 @@ def make_plot_from_dict(plotdict):
     if "b" in plotdict:
         b = int(plotdict["b"])
 
+    detail = "n"
+    if "detail" in plotdict:
+        detail = plotdict["detail"]
+
     outfile = None
     if "outdir" in plotdict:
         outfile = plotdict["outdir"]
@@ -208,13 +219,13 @@ def make_plot_from_dict(plotdict):
     if xaxis == "p":
         if b > 1:
             xaxis = f"p / {b}"
-        for layer_num in range(2,10):
+        for layer_num in range(2,17):
             try:
                 if yaxis == "Success Rate":
-                    plot_success_rate(indir, layer_num)
+                    plot_success_rate(indir, layer_num, detail)
                 elif yaxis == "Mean Request Time":
-                    plot_request_time(indir, layer_num, whiskers)
-            except:
+                    plot_request_time(indir, layer_num, whiskers, detail)
+            except ValueError:
                 continue
         if not whiskers:
             plt.xscale("log")

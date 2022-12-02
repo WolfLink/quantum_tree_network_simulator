@@ -120,12 +120,12 @@ def run_word_size_sim():
         for word_size in tqdm([1,2,4,8,16]):
             params = [{"p" : 0.1**(1+2*i/l), "k" : 4, "n" : 4, "t" : "1e4", "b" : word_size} for i in range(l)]
             for result in tqdm(pool.imap_unordered(launch_sim_from_dict, params), total=l):
-                os.makedirs(os.path.join(dir_str, f"layers_{result['init_data'][2]}"), exist_ok=True)
-                with open(os.path.join(dir_str, f"layers_{result['init_data'][2]}/{result['init_data']}.data"), "wb") as f:
+                os.makedirs(os.path.join(dir_str, f"b_{result['init_data'][4]}"), exist_ok=True)
+                with open(os.path.join(dir_str, f"b_{result['init_data'][4]}/{result['init_data']}.data"), "wb") as f:
                     pickle.dump(result, f)
         
     else:
-        print(f"Skipping running multi_size_sim because path {dir_str} already exists.")
+        print(f"Skipping running word_size_sim because path {dir_str} already exists.")
 
     # draw the graphs
     plotdict = {
@@ -152,3 +152,4 @@ def run_word_size_sim():
 if __name__ == "__main__":
     run_dynamic_response_sim()
     run_multi_size_sim()
+    run_word_size_sim()
