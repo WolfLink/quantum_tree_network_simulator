@@ -74,11 +74,11 @@ def run_multi_size_sim():
         # run the sims and save the raw data
         pool = Pool()
         l = 128
-        for num_layers in tqdm([2,3,4,5]):
+        for num_layers in tqdm([2,3]):
             params = [{"p" : 0.1**(1+2*i/l), "k" : 4, "n" : num_layers, "t" : "1e4", "b" : 1} for i in range(l)]
             for result in tqdm(pool.imap_unordered(launch_sim_from_dict, params), total=l):
-                os.makedirs(os.path.join(dir_str, f"layers_{result['init_data'][2]}"), exist_ok=True)
-                with open(os.path.join(dir_str, f"layers_{result['init_data'][2]}/{result['init_data']}.data"), "wb") as f:
+                os.makedirs(os.path.join(dir_str, f"n_{result['init_data'][2]}"), exist_ok=True)
+                with open(os.path.join(dir_str, f"n_{result['init_data'][2]}/{result['init_data']}.data"), "wb") as f:
                     pickle.dump(result, f)
         
     else:
