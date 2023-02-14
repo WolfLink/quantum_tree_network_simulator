@@ -74,8 +74,8 @@ def run_multi_size_sim():
         # run the sims and save the raw data
         pool = Pool()
         l = 128
-        for num_layers in tqdm([2,3]):
-            params = [{"p" : 0.1**(1+2*i/l), "k" : 4, "n" : num_layers, "t" : "1e4", "b" : 1} for i in range(l)]
+        for num_layers in tqdm([2,3,4,5]):
+            params = [{"p" : 0.1**(1+2*i/l), "k" : 4, "n" : num_layers, "t" : "1e4", "b" : 1, "resample" : True} for i in range(l)]
             for result in tqdm(pool.imap_unordered(launch_sim_from_dict, params), total=l):
                 os.makedirs(os.path.join(dir_str, f"n_{result['init_data'][2]}"), exist_ok=True)
                 with open(os.path.join(dir_str, f"n_{result['init_data'][2]}/{result['init_data']}.data"), "wb") as f:
@@ -118,7 +118,7 @@ def run_word_size_sim():
         pool = Pool()
         l = 128
         for word_size in tqdm([1,2,4,8,16]):
-            params = [{"p" : 0.1**(1+2*i/l), "k" : 4, "n" : 4, "t" : "1e4", "b" : word_size} for i in range(l)]
+            params = [{"p" : 0.1**(1+2*i/l), "k" : 4, "n" : 4, "t" : "1e4", "b" : word_size, "resample": True} for i in range(l)]
             for result in tqdm(pool.imap_unordered(launch_sim_from_dict, params), total=l):
                 os.makedirs(os.path.join(dir_str, f"b_{result['init_data'][4]}"), exist_ok=True)
                 with open(os.path.join(dir_str, f"b_{result['init_data'][4]}/{result['init_data']}.data"), "wb") as f:

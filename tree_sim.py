@@ -3,6 +3,7 @@ from tqdm import tqdm
 from time import perf_counter as timer
 from multiprocessing import Pool, cpu_count, current_process
 from matplotlib import pyplot as plt
+from scipy.stats import t
 import pickle
 import os
 
@@ -279,6 +280,27 @@ def default_launch_dict():
             }
     return launchdict
 
+
+def accept_convergence(samples, max_value):
+    # takes in the number of samples and total, and a new sample
+    # returns whether or not to accept convergence under these conditions
+    n = len(samples)
+    if n < 10:
+        return False
+
+    # could establish a maximum?
+    if n >= 1000000:
+        print("WARNING: sample maximum hit")
+        return True
+
+    S = np.var(samples, ddof=1)
+    z = t.ppf(0.9, n-1)
+
+    if z * S / np.sqrt(n) < 0.01 * max_value:
+        return True
+    else:
+        return False
+
 def launch_sim_from_dict(launchdict):
     newlaunchdict = default_launch_dict()
     newlaunchdict.update(launchdict)
@@ -293,16 +315,104 @@ def launch_sim_from_dict(launchdict):
     if "seed" in launchdict:
         np.random.seed(launchdict["seed"])
 
+    samples = 1
+    if "resample" in launchdict:
+        if launchdict["resample"] is False or launchdict["resample"] is None:
+            # just do one sample
+            pass
+        elif launchdict["resample"] is True:
+            # do dynamic resampling
+            samples = None
+        else:
+            # do the specified number of samples
+            samples = launchdict["resample"]
+
+
     sim = None
     if len(p_changes) > 0:
+        if samples != 1:
+            print("WARNING: ChangingPTreeSim currently does not support resampling as it is handled differently from other sims")
         sim = ChangingPTreeSim(p, k, n, t, b)
         for p_change in p_changes:
             sim.set_p_change(p_change[0], p_change[1])
+        sim.run_sim()
+        return sim.summary_dict()
     else:
-        sim = TreeSim(p, k, n, t, b)
+        if samples == 1:
+            sim = TreeSim(p, k, n, t, b)
+            sim.run_sim()
+            return sim.summary_dict()
+        elif samples is None:
+            samples = 0
+            stats_total = [0,0,0,0,0,0]
+            timings_total = [0,0,0]
+            total_summary_dict = {
+                    "init_data" : (p, k, n, t, b),
+                    "request_cycles" : [],
+                    "request_success" : [],
+                    "samples" : samples,
+                    "individual_samples" : []
+                    }
+            convergence_time = []
+            convergence_success = []
+            while not (accept_convergence(convergence_time, EXPIRATION_TIME) and accept_convergence(convergence_success, 1)):
+                # run a sim
+                sim = TreeSim(p, k, n, t, b)
+                sim.run_sim()
+                result = sim.summary_dict()
 
-    sim.run_sim()
-    return sim.summary_dict()
+                # record the result
+                total_summary_dict["individual_samples"].append(result)
+                total_summary_dict["request_cycles"] += result["request_cycles"]
+                total_summary_dict["request_success"] += result["request_success"]
+
+                stats = result["stats"]
+                for i in range(len(stats)):
+                    stats_total[i] += stats[i]
+
+                timings = result["timings"]
+                for i in range(len(timings)):
+                    timings_total[i] += timings[i]
+
+                convergence_time.append(np.mean(result["request_cycles"]))
+                convergence_success.append(np.mean(result["request_success"]))
+                samples += 1
+
+            total_summary_dict["stats"] = tuple([stat / samples for stat in stats_total])
+            total_summary_dict["timings"] = tuple([timing / samples for timing in timings_total])
+            return total_summary_dict
+        else:
+            stats_total = [0,0,0,0,0,0]
+            timings_total = [0,0,0]
+            total_summary_dict = {
+                    "init_data" : (p, k, n, t, b),
+                    "request_cycles" : [],
+                    "request_success" : [],
+                    "samples" : samples,
+                    "individual_samples" : []
+                    }
+            for _ in range(samples):
+                # run a sim
+                sim = TreeSim(p, k, n, t, b)
+                sim.run_sim()
+                result = sim.summary_dict()
+
+                # record the result
+                total_summary_dict["individual_samples"].append(result)
+                total_summary_dict["request_cycles"] += result["request_cycles"]
+                total_summary_dict["request_success"] += result["request_success"]
+
+                stats = result["stats"]
+                for i in range(len(stats)):
+                    stats_total[i] += stats[i]
+
+                timings = result["timings"]
+                for i in range(len(timings)):
+                    timings_total[i] += timings[i]
+
+            total_summary_dict["stats"] = tuple([stat / samples for stat in stats_total])
+            total_summary_dict["timings"] = tuple([timing / samples for timing in timings_total])
+            return total_summary_dict
 
 
 if __name__ == "__main__":
