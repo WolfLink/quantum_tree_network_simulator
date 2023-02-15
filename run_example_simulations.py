@@ -76,10 +76,13 @@ def run_multi_size_sim():
         l = 128
         for num_layers in tqdm([2,3,4,5]):
             params = [{"p" : 0.1**(1+2*i/l), "k" : 4, "n" : num_layers, "t" : "1e4", "b" : 1, "resample" : True} for i in range(l)]
+            sample_counts = []
             for result in tqdm(pool.imap_unordered(launch_sim_from_dict, params), total=l):
+                sample_counts.append(result["samples"])
                 os.makedirs(os.path.join(dir_str, f"n_{result['init_data'][2]}"), exist_ok=True)
                 with open(os.path.join(dir_str, f"n_{result['init_data'][2]}/{result['init_data']}.data"), "wb") as f:
                     pickle.dump(result, f)
+            #print(f"mean: {np.mean(sample_counts)}\tmedian: {np.median(sample_counts)}\tmax: {np.max(sample_counts)}\tmcount: {np.sum(np.array(sample_counts) == 1000)}")
         
     else:
         print(f"Skipping running multi_size_sim because path {dir_str} already exists.")

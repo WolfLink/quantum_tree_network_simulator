@@ -289,8 +289,7 @@ def accept_convergence(samples, max_value):
         return False
 
     # could establish a maximum?
-    if n >= 1000000:
-        print("WARNING: sample maximum hit")
+    if n >= 1000:
         return True
 
     S = np.var(samples, ddof=1)
@@ -350,7 +349,6 @@ def launch_sim_from_dict(launchdict):
                     "init_data" : (p, k, n, t, b),
                     "request_cycles" : [],
                     "request_success" : [],
-                    "samples" : samples,
                     "individual_samples" : []
                     }
             convergence_time = []
@@ -380,6 +378,7 @@ def launch_sim_from_dict(launchdict):
 
             total_summary_dict["stats"] = tuple([stat / samples for stat in stats_total])
             total_summary_dict["timings"] = tuple([timing / samples for timing in timings_total])
+            total_summary_dict["samples"] = samples
             return total_summary_dict
         else:
             stats_total = [0,0,0,0,0,0]
