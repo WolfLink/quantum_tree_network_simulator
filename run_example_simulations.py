@@ -47,7 +47,7 @@ def run_dynamic_response_sim():
             "x" : "time",
             "y" : "rate",
             "indir" : dir_str,
-            "outdir" : "example_graphs/dynamic_sim_rate.png",
+            "outdir" : "example_graphs/dynamic_sim_rate.pdf",
             "binsize" : 256,
             }
 
@@ -57,7 +57,7 @@ def run_dynamic_response_sim():
         make_plot_from_dict(plotdict)
 
     plotdict["y"] = "time"
-    plotdict["outdir"] = "example_graphs/dynamic_sim_time.png"
+    plotdict["outdir"] = "example_graphs/dynamic_sim_time.pdf"
     if os.path.exists(plotdict["outdir"]):
         print(f"Skipping overwriting existing graph {plotdict['outdir']}")
     else:
@@ -92,7 +92,7 @@ def run_multi_size_sim():
             "x" : "p",
             "y" : "rate",
             "indir" : dir_str,
-            "outdir" : "example_graphs/multi_sim_rate.png",
+            "outdir" : "example_graphs/multi_sim_rate.pdf",
             "legend" : True,
             }
 
@@ -102,7 +102,7 @@ def run_multi_size_sim():
         make_plot_from_dict(plotdict)
 
     plotdict["y"] = "time"
-    plotdict["outdir"] = "example_graphs/multi_sim_time.png"
+    plotdict["outdir"] = "example_graphs/multi_sim_time.pdf"
     if os.path.exists(plotdict["outdir"]):
         print(f"Skipping overwriting existing graph {plotdict['outdir']}")
     else:
@@ -135,7 +135,7 @@ def run_word_size_sim():
             "x" : "p",
             "y" : "rate",
             "indir" : dir_str,
-            "outdir" : "example_graphs/word_sim_rate.png",
+            "outdir" : "example_graphs/word_sim_rate.pdf",
             "legend" : True,
             "detail" : "b"
             }
@@ -146,7 +146,7 @@ def run_word_size_sim():
         make_plot_from_dict(plotdict)
 
     plotdict["y"] = "time"
-    plotdict["outdir"] = "example_graphs/word_sim_time.png"
+    plotdict["outdir"] = "example_graphs/word_sim_time.pdf"
     if os.path.exists(plotdict["outdir"]):
         print(f"Skipping overwriting existing graph {plotdict['outdir']}")
     else:

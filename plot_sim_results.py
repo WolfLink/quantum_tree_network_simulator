@@ -176,6 +176,7 @@ def plot_time_sweep(base_dir, plotdict):
         plt.plot(result_time, result_rate)
 
 def make_plot_from_dict(plotdict):
+    fig = plt.figure(figsize=(4,3))
     yaxis = plotdict["y"]
     if yaxis in ["rate", "r", "s", "success"]:
         yaxis = "Success Rate"
