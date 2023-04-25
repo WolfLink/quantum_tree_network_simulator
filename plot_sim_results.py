@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib
 from matplotlib import pyplot as plt
 import pickle
 import os
@@ -238,10 +239,10 @@ def make_plot_from_dict(plotdict):
     plt.xlabel(xaxis)
     plt.ylabel(yaxis)
     if legend:
-        plt.legend()
+        plt.legend(facecolor="transparent")
     if outfile is None:
         plt.show()
     else:
-        plt.savefig(outfile, transparent=True)
+        plt.savefig(outfile, transparent=True, bbox_inches="tight")
         plt.clf()
 
