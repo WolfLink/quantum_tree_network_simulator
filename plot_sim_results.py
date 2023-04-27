@@ -5,11 +5,9 @@ import pickle
 import os
 from tqdm import tqdm
 
-# TODO: this file should really get a full rework
+# This file contains the code that draws the graphs that you will find in example_graphs
 
-def moving_average(x, w):
-    return np.convolve(x, np.ones(w), 'same') / w
-
+# This function performs binned averaging for the dynamic_sim graphs
 def normalize_by_time(time, value, round_to=1):
     out_time = []
     out_value = []
@@ -41,6 +39,11 @@ class SmartTimer:
         self.value += tock - clock
         return tock
 
+
+
+
+# These two functions are used by the plot functions to navigate the directories that store the raw data from the simulations.
+
 def iterate_layer_dict(base_dir, var_num, var_str):
     for root, dirs, files in os.walk(f"{base_dir}/{var_str}_{var_num}"):
         for file in files:
@@ -56,18 +59,9 @@ def iterate_directory(base_dir):
                 with open(os.path.join(root, file), "rb") as f:
                     yield pickle.load(f)
 
-# full documentation of the file format
-# they are pickled dictionaries of numpy data
-# they are organized like this:
-# outermost_dict = {
-# "init_data" : (p, k, num_layers, num_cycles), # parameters for the simulated scenario
-# "stats" : (requests_enqueued, requests_satisfied, requests_expired, entanglements_expired, entanglements_used, entanglements_made), # stats of how many requests/entanglements were expired vs used
-# "request_cycles" : [array containing the number of cycles it took for each completed request to complete], # more detailed data about request timing, mainly used for whisker plots
-# "timings" : (timer_memory_update, timer_request_make, timer_request_solve), # I've broken the main simulation loop into three segments and I record the timings for profiling purposes to help me optimize the code. I've already made the code ~2x faster with the help of this data.
-# }
 
-
-def plot_success_rate(base_dir,layer_num, detail):
+# Plot success rate vs request rate, with the option for either n or b to be displayed in the legend.
+def plot_success_rate(base_dir, layer_num, detail):
     request_success_rate = []
     p = []
     data_arr = list(iterate_layer_dict(base_dir, layer_num, detail))
@@ -86,7 +80,7 @@ def plot_success_rate(base_dir,layer_num, detail):
     elif detail == "b":
         plt.plot(p, request_success_rate, label=f"b={layer_num}")
 
-
+# Plot request time vs request rate, with the option for either n or b to be displayed in the legend.
 def plot_request_time(base_dir, layer_num, whiskers, detail):
     if whiskers:
         request_times = []
@@ -122,7 +116,7 @@ def plot_request_time(base_dir, layer_num, whiskers, detail):
         elif detail == "b":
             plt.plot(p, mean_request_time, label=f"b={layer_num}")
 
-
+# Plot success rate or request time vs simulation time, with bin-averaged simulation results.  This is intended to be used with dynamic_sim.
 def plot_time_sweep(base_dir, plotdict):
     result_time = []
     result_cycles = []
@@ -176,6 +170,8 @@ def plot_time_sweep(base_dir, plotdict):
         result_time, result_rate = normalize_by_time(result_time, result_cycles, normalize_bins)
         plt.plot(result_time, result_rate)
 
+
+# This function takes a dictionary that specifies the details of what plot is needed, figures out which calls to the above functions need to be made, and includes additional matplotlib boilerplate code.
 def make_plot_from_dict(plotdict):
     fig = plt.figure(figsize=(4,3))
     yaxis = plotdict["y"]

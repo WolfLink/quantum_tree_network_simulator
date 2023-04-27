@@ -7,8 +7,17 @@ from scipy.stats import t
 import pickle
 import os
 
+# This file contains the core simulation code.
 
-# some constants
+# It simulates the behavior of a quantum network organized in a tree structure.
+
+# The shape of the network is defined when creating a new TreeSim, as having branching factor k and a number of layers n.
+
+# The simulation will be run for t cycles.
+# Every cycle, each pair of client nodes (the leaves of the tree) has a probability p/2b of making b requests.
+
+
+# Core simulation constants are defined here.
 EXPIRATION_TIME = 1e3
 MEMORIES_PER_END_NODE = 10
 
@@ -30,13 +39,13 @@ def index_for_current_process():
         return current_process()._identity[0]
 
 class TreeSim:
-    def __init__(self, p, k, num_layers, num_cycles, multiplicity=1, include_expired=True):
+    def __init__(self, p, k, n, t, b=1, include_expired=True):
         # store the sim properties
         self.p = p
         self.k = k
-        self.num_layers = num_layers
-        self.num_cycles = num_cycles
-        self.multiplicity = multiplicity
+        self.n = n
+        self.t = t
+        self.b = b
         self.include_expired = include_expired
 
         # initialize the request queue
@@ -59,15 +68,21 @@ class TreeSim:
         self.timer_request_solve = SmartTimer()
 
         # initialize the memories
-        self.node_names = [(layer, index) for layer in range(num_layers) for index in range(k ** layer)]
+        self.node_names = [(layer, index) for layer in range(n) for index in range(k ** layer)]
         self.entages = dict()
         self.node_pairs = [(node, (node[0]-1, node[1] // k)) for node in self.node_names if node[0] > 0]
         for node_pair in self.node_pairs:
             self.entages[node_pair] = []
 
+    # This describes the output format.
+    # init_data : The input values that describe the network size and properties of the simulation.
+    # stats : Raw counts of various events regarding client requests.  Respectively: the total number of requests made over the course of the simulation, the number of requests that were completed successively, the number of requests that expired before they could be completed, the number of entanglements that expired before they could be used by requests, the number of entanglements that were consumed by requests, and the total number of entanglements made during the simulation.
+    # request_cycles : The age of every request that was terminated (either completed or expired) at the time that it terminated.
+    # request_success : Contains a 1 for every completed request and a 0 for every expired request.  Both this array and request_cycles are arranged in order of request termination.
+    # timings : How much time was spent in certain sections of the code.  These are recorded to aid in optimizing the simulation.
     def summary_dict(self):
         return {
-                "init_data" : (self.p, self.k, self.num_layers, self.num_cycles, self.multiplicity),
+                "init_data" : (self.p, self.k, self.n, self.t, self.b),
                 "stats" : (self.requests_enqueued, self.requests_satisfied, self.requests_expired, self.entanglements_expired, self.entanglements_used, self.entanglements_made),
                 "request_cycles" : self.requests_cycles,
                 "request_success" : self.requests_success,
@@ -78,36 +93,33 @@ class TreeSim:
 
     def run_sim(self):
         if current_process().name == "MainProcess":
-            with tqdm(range(int(self.num_cycles)), 
-                    total=self.num_cycles,
+            with tqdm(range(int(self.t)), 
+                    total=self.t,
                     ) as pbar:
                 for _ in pbar:
                     self.time_cycle()
                     pbar.set_description(
                             desc=f"E: {self.entanglements_used}/{self.entanglements_expired}/{self.entanglements_made} R: {self.requests_satisfied}/{self.requests_enqueued}",
-                            #desc=f"E: {self.entanglements_used}/{self.entanglements_expired}/{self.entanglements_made} R: {self.requests_satisfied}/{self.requests_enqueued} T:{self.timer_memory_update.value}/{self.timer_request_make.value}/{self.timer_request_solve.value}",
                             refresh=False)
         else:
-            for _ in range(int(self.num_cycles)):
+            for _ in range(int(self.t)):
                 self.time_cycle()
 
     def time_cycle(self):
         tick = timer()
+
         # make new requests
         k = self.k
-        N = k ** (self.num_layers - 1)
+        N = k ** (self.n - 1)
         n0 = N*(N-1)/2
-        p0 = (N*self.p/(2*n0)) / self.multiplicity
+        p0 = (N*self.p/(2*n0)) / self.b
 
         r_add_a, r_add_b = (np.random.rand(N,N) < p0).nonzero()
         for i in range(r_add_a.shape[0]):
-            self.request_queue.extend([(r_add_a[i], r_add_b[i])] * self.multiplicity)
-        self.request_ages.extend([0] * r_add_a.shape[0] * self.multiplicity)
-        self.requests_enqueued += r_add_a.shape[0] * self.multiplicity
-
-       # print(f"{len(self.request_queue)}\t{len(self.request_ages)}\t{self.requests_enqueued}")
-
-        # on average there should be N*p/2 pairs per cycle
+            self.request_queue.extend([(r_add_a[i], r_add_b[i])] * self.b)
+        self.request_ages.extend([0] * r_add_a.shape[0] * self.b)
+        self.requests_enqueued += r_add_a.shape[0] * self.b
+        # on average there should be N*p/(2*b) pairs per cycle
 
         tick = self.timer_request_make.tick(tick)
 
@@ -118,7 +130,7 @@ class TreeSim:
             self.entages[pair] = [age + 1 for age in self.entages[pair] if age < EXPIRATION_TIME]
             self.entanglements_expired += before_len - len(self.entages[pair])
 
-            memories_per_pair = MEMORIES_PER_END_NODE * (4 ** (self.num_layers - pair[0][0] - 1))
+            memories_per_pair = MEMORIES_PER_END_NODE * (4 ** (self.n - pair[0][0] - 1))
 
             if len(self.entages[pair]) < memories_per_pair:
                 entanglements_made = int(np.sum(np.random.rand(memories_per_pair - len(self.entages[pair])) < 0.001))
@@ -129,18 +141,16 @@ class TreeSim:
 
         # attempt to satisfy requests
         marked_for_deletion = []
-        # potential speedup: only check requests for which an entanglement that may be useful has been made this cycle
         for i, request in enumerate(self.request_queue):
             # traverse the tree to check for completion
-            curr_a = (self.num_layers - 1, request[0])
-            curr_b = (self.num_layers - 1, request[1])
+            curr_a = (self.n - 1, request[0])
+            curr_b = (self.n - 1, request[1])
             while curr_a != curr_b:
-                # identify the up-nodes
+                # identify the nodes that are one level up from the current node
                 up_a = (curr_a[0]-1, curr_a[1] // k)
                 up_b = (curr_b[0]-1, curr_b[1] // k)
                 
-                # check for connections
-                #print(self.entages.keys())
+                # check for entaglements between node curr_a and up_a
                 if up_a[0] >= 0:
                     if len(self.entages[(curr_a, up_a)]) > 0:
                         # this passes the check
@@ -149,7 +159,7 @@ class TreeSim:
                         # this fails the check and qualifies for us to immediately stop
                         break
 
-                # check for connections
+                # check for entaglements between node curr_b and up_b
                 if up_b[0] >= 0:
                     if len(self.entages[(curr_b, up_b)]) > 0:
                         # this passes the check
@@ -163,10 +173,14 @@ class TreeSim:
                     print(f"A: c: {curr_a} u: {up_a}\tB: c: {curr_b} u: {up_b}")
                     break
 
-            # check for success
+            # if needed entanglements are missing, we cannot complete these requests this cycle
             if curr_a != curr_b:
                 # age up the request
                 self.request_ages[i] += 1
+
+                # if the request is now expired, mark it for deletion
+                # we will clean up these marked requests after we are done checking all of the requests
+                # also record that the request expired, as well as its age
                 if self.request_ages[i] >= EXPIRATION_TIME:
                     marked_for_deletion.append(i)
                     self.requests_expired += 1
@@ -175,16 +189,19 @@ class TreeSim:
                         self.requests_success.append(0)
                 continue
 
-            # this request has passed! so we must go use the entanglements
-            #i = self.request_queue.index(request)
+            # this request has passed! so we must go consume the entanglements
+
+            # mark this request to be cleaned up later
+            # also record that the request completed successfully, as well as its age
             marked_for_deletion.append(i)
             self.requests_cycles.append(self.request_ages[i])
             self.requests_success.append(1)
 
-            curr_a = (self.num_layers - 1, request[0])
-            curr_b = (self.num_layers - 1, request[1])
+            # traverse the tree again, this time consuming the entaglements along the way
+            curr_a = (self.n - 1, request[0])
+            curr_b = (self.n - 1, request[1])
             while curr_a != curr_b:
-                # identify the up-nodes
+                # identify the nodes that are one level up from the current node
                 up_a = (curr_a[0]-1, curr_a[1] // k)
                 up_b = (curr_b[0]-1, curr_b[1] // k)
 
@@ -219,16 +236,11 @@ class TreeSim:
         tick = self.timer_request_solve.tick(tick)
 
 
-
-
-    # at every clock cycle, there is a probability p0=N*p/(2*n0) that each of the n0 communication pairs is requested (all possible pairs in the whole thing)
-    # sweep over p
-
-
-
+# This class is an extension to the main simulation program that enables the request rate p to be changed mid-simulation
+# It also adds "request_times" to the summary_dict, which records the time when the request terminated, for each terminated request.  This is time simulation time at request termination, as opposed to request age at termination.
 class ChangingPTreeSim(TreeSim):
-    def __init__(self, p, k, num_layers, num_cycles, multiplicity=1):
-        super().__init__(p, k, num_layers, num_cycles, multiplicity)
+    def __init__(self, p, k, n, t, b=1):
+        super().__init__(p, k, n, t, b)
         self.p_changes = dict()
         self.time = 0
         self.requests_finish_times = []
@@ -237,6 +249,8 @@ class ChangingPTreeSim(TreeSim):
     def set_p_change(self, p, time):
         self.p_changes[time] = p
 
+    # This time_cycle modified p at the necessary times.
+    # It calls into the time_cycle function from the superclass to handle the actual simulation.
     def time_cycle(self):
         self.time += 1
         if self.time in self.p_changes:
@@ -246,7 +260,7 @@ class ChangingPTreeSim(TreeSim):
         
     def summary_dict(self):
         return {
-                "init_data" : (self.p, self.k, self.num_layers, self.num_cycles),
+                "init_data" : (self.p, self.k, self.n, self.t),
                 "stats" : (self.requests_enqueued, self.requests_satisfied, self.requests_expired, self.entanglements_expired, self.entanglements_used, self.entanglements_made),
                 "request_cycles" : self.requests_cycles,
                 "request_times" : self.requests_finish_times,
@@ -254,20 +268,7 @@ class ChangingPTreeSim(TreeSim):
                 "timings" : (self.timer_memory_update.value, self.timer_request_make.value, self.timer_request_solve.value)
                 }
 
-def run_tree_sim_with_params(payload):
-    desired_num_layers, p = payload
-    multiplicity = 5
-    sim = TreeSim(p=p, k=4, num_layers=desired_num_layers, num_cycles=1e4, multiplicity=multiplicity)
-    sim.run_sim()
-
-    summary_dict = sim.summary_dict()
-
-    output_path = f"summary_dicts_multi{multiplicity}/layers_{desired_num_layers}/{summary_dict['init_data']}.data"
-    os.makedirs(f"summary_dicts_multi{multiplicity}/layers_{desired_num_layers}", exist_ok=True)
-    with open(output_path, "wb") as f:
-        pickle.dump(summary_dict, f)
-    return summary_dict
-
+# This simply returns a standard default launch dict with some reasonable example parameters.
 def default_launch_dict():
     launchdict = {
             "p" : 1e-3,
@@ -281,25 +282,31 @@ def default_launch_dict():
     return launchdict
 
 
+# This function decides convergence when trying to take a dynamic number of samples.
+# The input "samples" is the list of the current data for the variable of interest.
+# The input "max_value" is the maximum possible value for the variable of interest.
+# This function is only ever used for "success rate" which ranges from 0 to 1, and "request age" which ranges from 0 to EXPIRATION_TIME.
 def accept_convergence(samples, max_value):
-    # takes in the number of samples and total, and a new sample
-    # returns whether or not to accept convergence under these conditions
     n = len(samples)
+
+    # Establish a minimum so we don't return early from getting very lucky.
     if n < 10:
         return False
 
-    # could establish a maximum?
+    # Establish a maximum to keep the simulation from spending too much time on the hard-to-simulate cases.
     if n >= 1000:
         return True
 
+    # Accept convergence when the size of the 90% confidence interval is smaller than 1% of the max_value (which is the same as the range of the variable, because the minimum value for both variables of interest is 0).
     S = np.var(samples, ddof=1)
     z = t.ppf(0.9, n-1)
-
     if z * S / np.sqrt(n) < 0.01 * max_value:
         return True
     else:
         return False
 
+# This is a helper function that runs the simulation based on a dictionary that specifies the input parameters.  This makes it easier to run the simulation many times with different parameters in run_example_simulations.py
+# This function also manages taking multiple samples for one data point, including dynamic sampling.
 def launch_sim_from_dict(launchdict):
     newlaunchdict = default_launch_dict()
     newlaunchdict.update(launchdict)
@@ -311,6 +318,7 @@ def launch_sim_from_dict(launchdict):
     b = int(launchdict["b"])
     p_changes = launchdict["pmod"]
 
+    # This is used to ensure simulations are run with different random seeds, in particular for the dynamic simulation, in which all simulations would end up exactly the same without different seeds.
     if "seed" in launchdict:
         np.random.seed(launchdict["seed"])
 
@@ -328,6 +336,7 @@ def launch_sim_from_dict(launchdict):
 
 
     sim = None
+    # If p_changes were specified, run the ChangingPTreeSim, which is handled a bit differently because we are interested in the behavior within a single sim instead of the statistics of sims with different parameters.
     if len(p_changes) > 0:
         if samples != 1:
             print("WARNING: ChangingPTreeSim currently does not support resampling as it is handled differently from other sims")
@@ -337,14 +346,22 @@ def launch_sim_from_dict(launchdict):
         sim.run_sim()
         return sim.summary_dict()
     else:
+        # If only one sample was requested, simply run it and return the result.
         if samples == 1:
             sim = TreeSim(p, k, n, t, b)
             sim.run_sim()
             return sim.summary_dict()
+
+        # If dynamic sampling was requested, we will run samples until convergence is achieved.
         elif samples is None:
             samples = 0
             stats_total = [0,0,0,0,0,0]
             timings_total = [0,0,0]
+
+            # Instead of returning the summary_dict from one simulation, we will return a total_summary_dict summarizing multiple simulations.
+            # The data in request_cycles and request_success will include all of the data from all of the requests.
+            # The number of samples taken is recorded in "samples".
+            # The original raw data for each sample is preserved in "individual_samples".  This is a list of the summary_dict from each sample that was taken.
             total_summary_dict = {
                     "init_data" : (p, k, n, t, b),
                     "request_cycles" : [],
@@ -353,6 +370,7 @@ def launch_sim_from_dict(launchdict):
                     }
             convergence_time = []
             convergence_success = []
+            # We require the data for both request age and success rate to pass the convergence test before we accept convergence.
             while not (accept_convergence(convergence_time, EXPIRATION_TIME) and accept_convergence(convergence_success, 1)):
                 # run a sim
                 sim = TreeSim(p, k, n, t, b)
@@ -380,6 +398,11 @@ def launch_sim_from_dict(launchdict):
             total_summary_dict["timings"] = tuple([timing / samples for timing in timings_total])
             total_summary_dict["samples"] = samples
             return total_summary_dict
+        
+        # When a specific number of samples > 1, we run that many samples and record all of the data.
+        # The number of samples taken is stored in "samples"
+        # request_cycles and request_success will include data from all of the runs instead of any individual run
+        # The original raw data, in the form of the original summary_dict from each simulation run, is preserved in a list in individual_samples
         else:
             stats_total = [0,0,0,0,0,0]
             timings_total = [0,0,0]
@@ -414,6 +437,8 @@ def launch_sim_from_dict(launchdict):
             return total_summary_dict
 
 
+# This file can be run as "python3 tree_sim.py" instead of being imported as a module.
+# When used as a command line tool, running "python3 tree_sim.py help" will print a description of the available parameters.
 if __name__ == "__main__":
     from parse_args import ParsedArgs
     args = ParsedArgs()

@@ -1,4 +1,7 @@
 from sys import argv
+
+# This class is used by tree_sim.py to help parse command line arguments
+
 class ParsedArgs:
     def __init__(self):
         self.path = argv[0]
