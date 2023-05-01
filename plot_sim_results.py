@@ -63,18 +63,27 @@ def iterate_directory(base_dir):
 # Plot success rate vs request rate, with the option for either n or b to be displayed in the legend.
 def plot_success_rate(base_dir, layer_num, detail):
     request_success_rate = []
+    stderr_success_rate = []
     p = []
     data_arr = list(iterate_layer_dict(base_dir, layer_num, detail))
     if len(data_arr) == 0:
         raise ValueError
     data_arr.sort(key=lambda data: data["init_data"][0])
     for data in data_arr:
-        stats = data["stats"]
-        request_success_rate.append(stats[1]/stats[0])
+        if "samples" in data:
+            sub_means = np.array([np.mean(np.array(subdata["request_success"])) for subdata in data["individual_samples"]])
+        else:
+            sub_means = np.array(data["request_success"])
+        request_success_rate.append(np.mean(sub_means))
+        stderr_success_rate.append(np.std(sub_means) / np.sqrt(np.shape(sub_means)[0]))
+
         p.append(data["init_data"][0])
 
     request_success_rate = np.array(request_success_rate)
+    stderr_success_rate = np.array(stderr_success_rate) * 1.96 # +/- 1.96 * stderr gives a 95% confidence interval.  1.64 would be 90%.
+
     p = np.array(p)
+    plt.fill_between(p, request_success_rate - stderr_success_rate, request_success_rate + stderr_success_rate, alpha=0.5)
     if detail == "n":
         plt.plot(p, request_success_rate, label=f"N={4 ** layer_num}")
     elif detail == "b":
@@ -99,18 +108,26 @@ def plot_request_time(base_dir, layer_num, whiskers, detail):
         plt.boxplot(request_times)
     else:
         mean_request_time = []
+        stderr_request_time = []
         p = []
         data_arr = list(iterate_layer_dict(base_dir, layer_num, detail))
         if len(data_arr) == 0:
             raise ValueError
         data_arr.sort(key=lambda data: data["init_data"][0])
         for data in data_arr:
-            cycles = data["request_cycles"]
-            mean_request_time.append(np.mean(np.array(cycles)))
+            if "samples" in data:
+                sub_means = np.array([np.mean(np.array(subdata["request_cycles"])) for subdata in data["individual_samples"]])
+            else:
+                sub_means = np.array(data["request_cycles"])
+            mean_request_time.append(np.mean(sub_means))
+            stderr_request_time.append(np.std(sub_means) / np.sqrt(np.shape(sub_means)[0]))
             p.append(data["init_data"][0])
 
         mean_request_time = np.array(mean_request_time)
+        stderr_request_time = np.array(stderr_request_time) * 1.96 # +/- 1.96 * stderr gives a 95% confidence interval.  1.64 would be 90%.
+
         p = np.array(p)
+        plt.fill_between(p, mean_request_time-stderr_request_time, mean_request_time+stderr_request_time, alpha=0.5)
         if detail == "n":
             plt.plot(p, mean_request_time, label=f"N={4 ** layer_num}")
         elif detail == "b":
@@ -235,7 +252,7 @@ def make_plot_from_dict(plotdict):
     plt.xlabel(xaxis)
     plt.ylabel(yaxis)
     if legend:
-        plt.legend(facecolor="transparent")
+        plt.legend()
     if outfile is None:
         plt.show()
     else:
