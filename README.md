@@ -23,11 +23,11 @@ The raw data in example\_sim\_results is organized like this:
 
 ## Individual data files are named (p, k, n, t, b).data where these are the input variables defining the parameters of the simulation:
 
-- `p`: request rate such that p/b pairs make b requests every cycle
+- `p`: request rate such that $\frac{k^np}{b}$ pairs make $b$ requests every cycle
 - `k`: branching factor of the tree
 - `n`: number of layers in the tree
 - `t`: duration of the simulation in cycles
-- `b`: request batch size such that p/b pairs make b requests every cycle
+- `b`: request batch size such that $\frac{k^np}{b}$ pairs make $b$ requests every cycle
 
 
 The data files in dynamic\_response\_sim are labelled (p, k, n, t, b)_run_i.data where i is an index identifying which run of the simulation it is.
