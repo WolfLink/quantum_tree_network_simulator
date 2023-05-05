@@ -74,6 +74,14 @@ def run_dynamic_response_sim():
     else:
         make_plot_from_dict(plotdict)
 
+    plotdict["y"] = "buffer"
+    plotdict["outdir"] = "example_graphs/dynamic_sim_buffer.pdf"
+    if os.path.exists(plotdict["outdir"]):
+        print(f"Skipping overwriting existing graph {plotdict['outdir']}")
+    else:
+        make_plot_from_dict(plotdict)
+    
+
 # This function runs the Multiple Size Simulation and plots the results.
 # This involves running the simulation many times, sweeping over different values of p, and plotting the effects, and then repeating this process for different network sizes, controlled by using different values of n. 
 def run_multi_size_sim():

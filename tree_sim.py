@@ -244,6 +244,7 @@ class ChangingPTreeSim(TreeSim):
         self.p_changes = dict()
         self.time = 0
         self.requests_finish_times = []
+        self.per_cycle_entanglement_buffer = []
 
 
     def set_p_change(self, p, time):
@@ -257,6 +258,7 @@ class ChangingPTreeSim(TreeSim):
             self.p = self.p_changes[self.time]
         super().time_cycle()
         self.requests_finish_times.extend([self.time] * (len(self.requests_cycles) - len(self.requests_finish_times)))
+        self.per_cycle_entanglement_buffer.append(self.entanglements_made - self.entanglements_used - self.entanglements_expired)
         
     def summary_dict(self):
         return {
@@ -264,6 +266,7 @@ class ChangingPTreeSim(TreeSim):
                 "stats" : (self.requests_enqueued, self.requests_satisfied, self.requests_expired, self.entanglements_expired, self.entanglements_used, self.entanglements_made),
                 "request_cycles" : self.requests_cycles,
                 "request_times" : self.requests_finish_times,
+                "entanglement_buffer" : self.per_cycle_entanglement_buffer,
                 "request_success" : self.requests_success,
                 "timings" : (self.timer_memory_update.value, self.timer_request_make.value, self.timer_request_solve.value)
                 }

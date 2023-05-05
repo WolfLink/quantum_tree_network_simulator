@@ -138,12 +138,17 @@ def plot_time_sweep(base_dir, plotdict):
     result_time = []
     result_cycles = []
     result_rate = []
+    result_buffer = []
+    samples = 0
 
     # gather data from the files
     for data in iterate_directory(base_dir):
+        samples += 1
         new_result_time = data["request_times"]
         new_result_cycles = data["request_cycles"]
         new_result_rate = data["request_success"]
+        new_result_buffer = data["entanglement_buffer"]
+
 
         old_i = 0
         merged_result_time = []
@@ -162,9 +167,18 @@ def plot_time_sweep(base_dir, plotdict):
             merged_result_cycles.append(new_result_cycles[i])
             merged_result_rate.append(new_result_rate[i])
 
+        merged_result_buffer = []
+        for i in range(len(new_result_buffer)):
+            for i2 in range(i * (samples - 1), (i+1) * (samples - 1)):
+                merged_result_buffer.append(result_buffer[i2])
+            merged_result_buffer.append(new_result_buffer[i])
+
+
+
         result_time = merged_result_time
         result_cycles = merged_result_cycles
         result_rate = merged_result_rate
+        result_buffer = merged_result_buffer
 
     # read the input parameters
     normalize_bins = 64
@@ -179,13 +193,18 @@ def plot_time_sweep(base_dir, plotdict):
         yaxis = "time"
 
     if yaxis == "rate":
-        print(f"Length before: {len(result_cycles)}")
         result_time, result_cycles = normalize_by_time(result_time, result_rate, normalize_bins)
         plt.plot(result_time, result_cycles)
-        print(f"printed length: {len(result_cycles)}")
     elif yaxis == "time":
         result_time, result_rate = normalize_by_time(result_time, result_cycles, normalize_bins)
         plt.plot(result_time, result_rate)
+    elif yaxis == "buffer":
+        result_time, result_buffer = normalize_by_time([i // samples for i in range(len(result_buffer))], result_buffer, normalize_bins)
+        # add a "T-1" point at 0 so matplotlib plots it with 0 as the y minimum
+        # this is not innacurate so I think its a reasonable approach
+        np.insert(result_time, 0, min(result_time) - 1)
+        np.insert(result_buffer, 0, 0)
+        plt.plot(result_time, result_buffer)
 
 
 # This function takes a dictionary that specifies the details of what plot is needed, figures out which calls to the above functions need to be made, and includes additional matplotlib boilerplate code.
@@ -196,6 +215,8 @@ def make_plot_from_dict(plotdict):
         yaxis = "Success Rate"
     elif yaxis in ["time", "t"]:
         yaxis = "Mean Request Time"
+    elif yaxis in ["buffer", "ebits"]:
+        yaxis = "Memory Buffer (e-bits)"
 
     xaxis = plotdict["x"]
     if xaxis in ["p", "probability"]:
