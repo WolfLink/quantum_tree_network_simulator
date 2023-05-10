@@ -5,6 +5,8 @@ import pickle
 import os
 from tqdm import tqdm
 
+from tree_sim import MEMORIES_PER_END_NODE
+
 # This file contains the code that draws the graphs that you will find in example_graphs
 
 # This function performs binned averaging for the dynamic_sim graphs
@@ -24,10 +26,10 @@ def normalize_by_time(time, value, round_to=1):
             count[index] += 1
         out_value[index] += value[i]
 
-    out_time = np.array(out_time)
+    out_time = np.array(out_time) + round_to * 2 # add 1*round_to to correct for an "off by one" in the above code, and another 1 to make datapoints be plotted at the end of their data range
     count = np.array(count)
     out_value = np.array(out_value) / count
-    print(f"Average data per bin was {np.mean(count)}")
+    #print(f"Average data per bin was {np.mean(count)}")
     return out_time, out_value
 
 class SmartTimer:
@@ -199,11 +201,16 @@ def plot_time_sweep(base_dir, plotdict):
         result_time, result_rate = normalize_by_time(result_time, result_cycles, normalize_bins)
         plt.plot(result_time, result_rate)
     elif yaxis == "buffer":
+        k = data["init_data"][1]
+        n = data["init_data"][2]
+        max_buffer = (k ** n) * n * MEMORIES_PER_END_NODE
         result_time, result_buffer = normalize_by_time([i // samples for i in range(len(result_buffer))], result_buffer, normalize_bins)
         # add a "T-1" point at 0 so matplotlib plots it with 0 as the y minimum
         # this is not innacurate so I think its a reasonable approach
-        np.insert(result_time, 0, min(result_time) - 1)
-        np.insert(result_buffer, 0, 0)
+        result_time = np.insert(result_time, 0, min(min(result_time) - 1, 0))
+        result_buffer = np.insert(result_buffer, 0, 0)
+        #result_buffer /= max_buffer
+        #print(f"Again after: {result_buffer[0]}")
         plt.plot(result_time, result_buffer)
 
 

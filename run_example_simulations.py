@@ -57,7 +57,7 @@ def run_dynamic_response_sim():
             "y" : "rate",
             "indir" : dir_str,
             "outdir" : "example_graphs/dynamic_sim_rate.pdf",
-            "binsize" : 256, # This is the width of bins (in units of the x axis, so time cycles) for binned averaging.  See plot_sim_results.py for more information.
+            "binsize" : 128, # This is the width of bins (in units of the x axis, so time cycles) for binned averaging.  See plot_sim_results.py for more information.
             }
 
     if os.path.exists(plotdict["outdir"]):
