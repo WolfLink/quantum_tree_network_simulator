@@ -5,7 +5,7 @@ import pickle
 import os
 from tqdm import tqdm
 
-from tree_sim import MEMORIES_PER_END_NODE
+from tree_sim import MEMORIES_PER_END_NODE, EXPIRATION_TIME
 
 # This file contains the code that draws the graphs that you will find in example_graphs
 
@@ -279,6 +279,18 @@ def make_plot_from_dict(plotdict):
 
     plt.xlabel(xaxis)
     plt.ylabel(yaxis)
+
+    # for request time and success rate, we know the min and max values are 0 and MEMORIES_PER_END_NODE or 1 respectively
+    # for memory buffer it doesn't get anywhere near its theoretical max and I already include the min of 0 by prepending a T-1=0 data point
+    if yaxis in ["Success Rate", "Mean Request Time"]:
+        ymin = 0
+        ymax = 1 if yaxis == "Success Rate" else EXPIRATION_TIME
+
+        ymarg = (ymax - ymin) * plt.margins()[1]
+        plt.ylim(ymin - ymarg, ymax + ymarg)
+
+        
+        
     if legend:
         plt.legend()
     if outfile is None:
