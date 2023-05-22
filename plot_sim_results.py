@@ -87,9 +87,9 @@ def plot_success_rate(base_dir, layer_num, detail):
     p = np.array(p)
     plt.fill_between(p, request_success_rate - stderr_success_rate, request_success_rate + stderr_success_rate, alpha=0.5)
     if detail == "n":
-        plt.plot(p, request_success_rate, label=f"N={4 ** layer_num}")
+        plt.plot(p, request_success_rate, label=f"$N$={4 ** (layer_num-1)}")
     elif detail == "b":
-        plt.plot(p, request_success_rate, label=f"b={layer_num}")
+        plt.plot(p, request_success_rate, label=f"$b$={layer_num}")
 
 # Plot request time vs request rate, with the option for either n or b to be displayed in the legend.
 def plot_request_time(base_dir, layer_num, whiskers, detail):
@@ -131,9 +131,9 @@ def plot_request_time(base_dir, layer_num, whiskers, detail):
         p = np.array(p)
         plt.fill_between(p, mean_request_time-stderr_request_time, mean_request_time+stderr_request_time, alpha=0.5)
         if detail == "n":
-            plt.plot(p, mean_request_time, label=f"N={4 ** layer_num}")
+            plt.plot(p, mean_request_time, label=f"$N$={4 ** (layer_num-1)}")
         elif detail == "b":
-            plt.plot(p, mean_request_time, label=f"b={layer_num}")
+            plt.plot(p, mean_request_time, label=f"$b$={layer_num}")
 
 # Plot success rate or request time vs simulation time, with bin-averaged simulation results.  This is intended to be used with dynamic_sim.
 def plot_time_sweep(base_dir, plotdict):
@@ -196,9 +196,11 @@ def plot_time_sweep(base_dir, plotdict):
 
     if yaxis == "rate":
         result_time, result_cycles = normalize_by_time(result_time, result_rate, normalize_bins)
+        result_time = np.array(result_time, dtype='float64') / np.array([1000.0], dtype='float64')
         plt.plot(result_time, result_cycles)
     elif yaxis == "time":
         result_time, result_rate = normalize_by_time(result_time, result_cycles, normalize_bins)
+        result_time = np.array(result_time, dtype='float64') / np.array([1000.0], dtype='float64')
         plt.plot(result_time, result_rate)
     elif yaxis == "buffer":
         k = data["init_data"][1]
@@ -211,6 +213,7 @@ def plot_time_sweep(base_dir, plotdict):
         result_buffer = np.insert(result_buffer, 0, 0)
         #result_buffer /= max_buffer
         #print(f"Again after: {result_buffer[0]}")
+        result_time = np.array(result_time, dtype='float64') / np.array([1000.0], dtype='float64')
         plt.plot(result_time, result_buffer)
 
 
@@ -219,11 +222,11 @@ def make_plot_from_dict(plotdict):
     fig = plt.figure(figsize=(4,3))
     yaxis = plotdict["y"]
     if yaxis in ["rate", "r", "s", "success"]:
-        yaxis = "Success Rate"
+        yaxis = "success rate"
     elif yaxis in ["time", "t"]:
-        yaxis = "Mean Request Time"
+        yaxis = "latency"
     elif yaxis in ["buffer", "ebits"]:
-        yaxis = "Memory Buffer (e-bits)"
+        yaxis = "memory buffer (e-bits)"
 
     xaxis = plotdict["x"]
     if xaxis in ["p", "probability"]:
@@ -260,13 +263,12 @@ def make_plot_from_dict(plotdict):
         legend = plotdict["legend"]
 
     if xaxis == "p":
-        if b > 1:
-            xaxis = f"p / {b}"
+        xaxis = "$p$"
         for layer_num in range(2,17):
             try:
-                if yaxis == "Success Rate":
+                if yaxis == "success rate":
                     plot_success_rate(indir, layer_num, detail)
-                elif yaxis == "Mean Request Time":
+                elif yaxis == "latency":
                     plot_request_time(indir, layer_num, whiskers, detail)
             except ValueError:
                 continue
@@ -274,7 +276,7 @@ def make_plot_from_dict(plotdict):
             plt.xscale("log")
 
     elif xaxis == "t":
-        xaxis = "Time (cycles)"
+        xaxis = "time ($10^3$ cycles)"
         plot_time_sweep(indir, plotdict)
 
     plt.xlabel(xaxis)
@@ -282,9 +284,9 @@ def make_plot_from_dict(plotdict):
 
     # for request time and success rate, we know the min and max values are 0 and MEMORIES_PER_END_NODE or 1 respectively
     # for memory buffer it doesn't get anywhere near its theoretical max and I already include the min of 0 by prepending a T-1=0 data point
-    if yaxis in ["Success Rate", "Mean Request Time"]:
+    if yaxis in ["success rate", "latency"]:
         ymin = 0
-        ymax = 1 if yaxis == "Success Rate" else EXPIRATION_TIME
+        ymax = 1 if yaxis == "success rate" else EXPIRATION_TIME
 
         ymarg = (ymax - ymin) * plt.margins()[1]
         plt.ylim(ymin - ymarg, ymax + ymarg)
