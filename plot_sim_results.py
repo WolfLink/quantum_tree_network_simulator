@@ -67,11 +67,14 @@ def plot_success_rate(base_dir, layer_num, detail):
     request_success_rate = []
     stderr_success_rate = []
     p = []
+    k = None
     data_arr = list(iterate_layer_dict(base_dir, layer_num, detail))
     if len(data_arr) == 0:
         raise ValueError
     data_arr.sort(key=lambda data: data["init_data"][0])
     for data in data_arr:
+        if k is None:
+            k = data["init_data"][1]
         if "samples" in data:
             sub_means = np.array([np.mean(np.array(subdata["request_success"])) for subdata in data["individual_samples"]])
         else:
@@ -87,7 +90,7 @@ def plot_success_rate(base_dir, layer_num, detail):
     p = np.array(p)
     plt.fill_between(p, request_success_rate - stderr_success_rate, request_success_rate + stderr_success_rate, alpha=0.5)
     if detail == "n":
-        plt.plot(p, request_success_rate, label=f"$N$={4 ** (layer_num-1)}")
+        plt.plot(p, request_success_rate, label=f"$N$={k ** (layer_num-1)}")
     elif detail == "b":
         plt.plot(p, request_success_rate, label=f"$b$={layer_num}")
 
@@ -112,11 +115,14 @@ def plot_request_time(base_dir, layer_num, whiskers, detail):
         mean_request_time = []
         stderr_request_time = []
         p = []
+        k = None
         data_arr = list(iterate_layer_dict(base_dir, layer_num, detail))
         if len(data_arr) == 0:
             raise ValueError
         data_arr.sort(key=lambda data: data["init_data"][0])
         for data in data_arr:
+            if k is None:
+                k = data["init_data"][1]
             if "samples" in data:
                 sub_means = np.array([np.mean(np.array(subdata["request_cycles"])) for subdata in data["individual_samples"]])
             else:
@@ -131,7 +137,7 @@ def plot_request_time(base_dir, layer_num, whiskers, detail):
         p = np.array(p)
         plt.fill_between(p, mean_request_time-stderr_request_time, mean_request_time+stderr_request_time, alpha=0.5)
         if detail == "n":
-            plt.plot(p, mean_request_time, label=f"$N$={4 ** (layer_num-1)}")
+            plt.plot(p, mean_request_time, label=f"$N$={k ** (layer_num-1)}")
         elif detail == "b":
             plt.plot(p, mean_request_time, label=f"$b$={layer_num}")
 
