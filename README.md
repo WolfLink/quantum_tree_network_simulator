@@ -9,6 +9,8 @@ This python library performs simulations of tree-shaped quantum networks under r
 
 run\_example\_simulations.py can also be used as an example of how to work with tree\_sim.py to run many simulations to compute statistics.
 
+There are also some examples in Jupyter Notebook form under `jupyter_examples`.
+
 
 
 # Raw Data Specification:
